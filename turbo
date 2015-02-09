@@ -1,0 +1,52 @@
+#! /bin/bash
+# shell script to check, enable or disable Turbo Boost on Intel processors
+
+BITMASK=0x4000000000
+
+function check() {
+  for CPU in $(cat /proc/cpuinfo | grep processor | cut -d: -f2); do 
+    BIT=$(sudo rdmsr -p$CPU 0x1a0 -f 38:38)
+
+    if [ "$BIT" == "1" ]; then 
+      STATUS="disabled"
+    else
+      STATUS="enabled"
+    fi
+
+    printf "processor       : %2d     turbo: %s\n" $CPU $STATUS
+  done
+}
+
+function enable() {
+  for CPU in $(cat /proc/cpuinfo | grep processor | cut -d: -f2); do 
+    MSR=0x$(sudo rdmsr -p$CPU 0x1a0)
+    NEW=$(printf "0x%x" $(( $MSR & ~ $BITMASK )) )
+    sudo wrmsr -p$CPU 0x1a0 $NEW
+  done
+}
+
+function disable() {
+  for CPU in $(cat /proc/cpuinfo | grep processor | cut -d: -f2); do 
+    MSR=0x$(sudo rdmsr -p$CPU 0x1a0)
+    NEW=$(printf "0x%x" $(( $MSR | $BITMASK )) )
+    sudo wrmsr -p$CPU 0x1a0 $NEW
+  done
+}
+
+if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
+  cat << @EOF
+usage:
+  turbo [check]
+  turbo enable | disable
+  turbo -h | --help
+@EOF
+elif [ "$1" == "" ] || [ "$1" == "check" ]; then
+  check
+elif [ "$1" == "enable" ]; then
+  enable
+  check
+elif [ "$1" == "disable" ]; then
+  disable
+  check
+fi
+
